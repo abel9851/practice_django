@@ -13,8 +13,8 @@ class ContextMixin:
 
     extra_context = None
 
-    def get_context_data(self, **kwargs):  # {'view': <__main__.ContextMixin object at 0x7f1159be9e20>}
-        kwargs.setdefault("view", self)
+    def get_context_data(self, **kwargs):
+        kwargs.setdefault("view", self) # {'view': <__main__.ContextMixin object at 0x7f1159be9e20>}
         if self.extra_context is not None:
             kwargs.update(self.extra_context)  # {key: value} update
         return kwargs
@@ -127,7 +127,7 @@ class TestView(View):
 # a.view_is_async
 
 
-class TemplateResonseMixin:
+class TemplateResponseMixin:
     """A mixin that can be used to render a template."""
 
     template_name = None
@@ -163,8 +163,26 @@ class TemplateResonseMixin:
         a list. May not be called if render_to_response is overridden.
         """
         if self.template_name is None:
-            raise ImproperlyConfigured("TemplateResponseMixin requireds either a definition of " "'template_name' or an implementation of 'get_template_names()")
+            raise ImproperlyConfigured(
+                "TemplateResponseMixin requireds either a definition of "
+                "'template_name' or an implementation of 'get_template_names()'")
         else:
             # 설명에 쓰여있듯이, template_names라면, 변수 이름도 template_names로 하는게 맞는것 같은데
             # 왜 단수로 했는지 이해가 안간다.
             return [self.template_name]
+
+
+class TemplateView(TemplateResponseMixin, ContextMixin, View):
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs) # 키워드만 추가, get_context_data는 ContextMixin에 정의되어있다.
+        return self.render_to_response(context) # render_to_response는 TemplateResponseMixin에 정의되어있다.
+                                                # 이 떄 사용되는 response class는 template response이다.
+
+
+class Redirectview(View):
+    """Provide a redirect on any GET request."""
+    permaent = False
+    url = None
+    pattern_name = None
+    query_string = False
