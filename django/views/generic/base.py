@@ -4,6 +4,8 @@ from django.core.exceptions import ImproperlyConfigured
 from django.template.response import TemplateResponse
 from django.utils.functional import classproperty
 
+from django.utils.decorators import classonlymethod
+
 
 class ContextMixin:
     """
@@ -28,7 +30,7 @@ class View:
 
     # dispatch-by-method는 method에 따라요청을 분배하는 패턴
     # HTTP프로토콜에서 각 HTTP메소드들에 대해 다른 동작을 수행해야하는 경우, 이 패턴이 사용된다.
-    # sanity checking은프로그램의 기본 동작이나 데이터의 기본형태를 검사하는 간단한 검사를 의미한다.
+    # sanity checking은 프로그램의 기본 동작이나 데이터의 기본형태를 검사하는 간단한 검사를 의미한다.
     # 예를 들어 입력 데이터가 특정 범위 내에 있는지, 특정형식을 갖추고 있는지 확인한다.
 
     http_method_names = [
@@ -172,6 +174,8 @@ class TemplateResponseMixin:
             return [self.template_name]
 
 
+# Reference https://docs.djangoproject.com/en/4.2/ref/class-based-views/base/#django.views.generic.base.View.http_method_not_allowed
+
 class TemplateView(TemplateResponseMixin, ContextMixin, View):
 
     def get(self, request, *args, **kwargs):
@@ -186,3 +190,70 @@ class Redirectview(View):
     url = None
     pattern_name = None
     query_string = False
+
+
+class View:
+    """
+    Intentionally simple parent class for all views. Only implements
+    dispatch-by-method and simple sanity checking.
+    """
+
+    def __init__(self, **kwargs):
+        """
+        Constructor. Called in the URLconf; can contain helpful extra
+        keyword arguments, and other things.
+        """
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    @classonlymethod # django.utils.decorators에서 확인해보면, python의 classmethod를 상속하고 있다. 별다른 수정없이 이름만 변경했다.
+    def as_view(cls, **initkwargs): # request를 인자로 취하고 response를 리턴하는 view 함수를 리턴한다.
+        """Main etnry point for a request-response process."""
+
+        for key in initkwargs:
+            if key in cls.http_method_names:
+                raise TypeError(
+                    'The method name %s is not accepted as a keyword argument '
+                    'to %s().' % (key, cls.__name__)
+                )
+            if not hasattr(cls, key):
+                raise TypeError("%s() received an invalid keyword %r. as view "
+                                "only accepts arguments that are already "
+                                "attributes of the class." % (cls.__name__, key)
+                                ) # key는 repr()가 호출되어 TypeErrror에 출력된다.
+
+        def view(request, *args, **kawrgs):
+            self = cls(**initkwargs) # view 클래스의 인스턴스를 생성한다. 위에서 정의한 init 메소드가 여기서 사용된다.
+                                     # 클래스 메소드에서 사용하는 관례적인 self 인자가 아니라 as_view 메소드 안에서 지역변수로 사용됬다.
+            self.setup(request, *args, **kawrgs)
+
+        view.view_class = cls # self를 사용하지 않고 cls를 사용하는 이유는, self는 인스턴스이고, cls는 클래스이기 때문이라고 생각한다.
+                              # 즉, view 함수의 view_class attribute는 클래스를,
+                              # self에는 인스턴스를 할당한다. 
+                              # 그리고 self는 view.view_class를 정의할 시점에서는 아직 인스턴스가 생성되지 않은 상태(view가 호출되지 않았다.)이므로
+                              # 사용할 수 없다. 
+                              # 뷰 클래스의 인스턴스는 각 HTTP 요청마다 새로 생성되므로, view_class에 인스턴스를 할당하는 것은 적절하지 않다.
+                              # self = cls(**initkwargs)가 그렇다.
+        view.view_initkwargs = initkwargs
+
+        return view
+
+    def setup(self, request, *args, **kwargs):
+        pass
+
+    def dispatch(self, request, *args, **kwargs):
+        pass
+
+    def http_method_not_allowed(self, request, *args, **kwargs):
+        pass
+
+    def option(self, request, *args, **kwargs):
+        pass
+
+    def _allowed_methods(self):
+        return [m.upper() for m in self.http_method_names if hasattr(self, m)] # view가 http_method_names 리스트 안에 있는 메소드를 attribute로 갖고 있으면, 대문자로 바꾼다. 
+                                                                               # HttpResponseNotAllowed를 리턴할 때 사용되는 value다.
+
+# 231030에 classonlymethod, __get__, __get__에서 classmethod를 만드는 방법 공부.
+# 231031에다음으로 공부할 것은 디스크립터 __set__와 디스크립터 __get__과 classmethod 만드는 방법과 __get__에 인자주는 방법 복습
