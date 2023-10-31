@@ -240,7 +240,12 @@ class View:
         return view
 
     def setup(self, request, *args, **kwargs):
-        pass
+        """Initialize attributes shared by all view methods."""
+        if hasattr(self, 'get') and not hasattr(self, 'head'): # self는 view 클래스의 인스턴스이다.
+            self.head = self.get # head attr 즉, head method가 구현이 안되어 있을 경우에는 get을 할당한다. base view 자체에서도 구현이 안되어 있고, 보통 head 메서드는 많이들 구현하지 않는다.
+        self.request = request # as_view()를 했을 떄 반환되는 view에 request를 할당한다.
+        self.args = args # 마찬가지로 args와 kwargs를 할당한다.
+        self.kwargs = kwargs
 
     def dispatch(self, request, *args, **kwargs):
         pass
@@ -256,4 +261,4 @@ class View:
                                                                                # HttpResponseNotAllowed를 리턴할 때 사용되는 value다.
 
 # 231030에 classonlymethod, __get__, __get__에서 classmethod를 만드는 방법 공부.
-# 231031에다음으로 공부할 것은 디스크립터 __set__와 디스크립터 __get__과 classmethod 만드는 방법과 __get__에 인자주는 방법 복습
+# 231101에 공부할 것은 디스크립터 프로토콜의 __delete__
