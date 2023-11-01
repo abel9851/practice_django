@@ -198,6 +198,8 @@ class View:
     dispatch-by-method and simple sanity checking.
     """
 
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace']
+
     def __init__(self, **kwargs):
         """
         Constructor. Called in the URLconf; can contain helpful extra
@@ -209,7 +211,7 @@ class View:
 
     @classonlymethod # django.utils.decorators에서 확인해보면, python의 classmethod를 상속하고 있다. 별다른 수정없이 이름만 변경했다.
     def as_view(cls, **initkwargs): # request를 인자로 취하고 response를 리턴하는 view 함수를 리턴한다.
-        """Main etnry point for a request-response process."""
+        """Main entry point for a request-response process."""
 
         for key in initkwargs:
             if key in cls.http_method_names:
@@ -223,10 +225,16 @@ class View:
                                 "attributes of the class." % (cls.__name__, key)
                                 ) # key는 repr()가 호출되어 TypeErrror에 출력된다.
 
-        def view(request, *args, **kawrgs):
+        def view(request, *args, **kwargs):
             self = cls(**initkwargs) # view 클래스의 인스턴스를 생성한다. 위에서 정의한 init 메소드가 여기서 사용된다.
                                      # 클래스 메소드에서 사용하는 관례적인 self 인자가 아니라 as_view 메소드 안에서 지역변수로 사용됬다.
-            self.setup(request, *args, **kawrgs)
+            self.setup(request, *args, **kwargs)
+            if not hasattr(self, 'request'):
+                raise AttributeError(
+                    "%s instance has no 'request' attribute. Did you override "
+                    "setup() and forget to call super()?" % cls.__name__
+                )
+            return self.dispatch(request, *args, **kwargs)
 
         view.view_class = cls # self를 사용하지 않고 cls를 사용하는 이유는, self는 인스턴스이고, cls는 클래스이기 때문이라고 생각한다.
                               # 즉, view 함수의 view_class attribute는 클래스를,
@@ -248,8 +256,12 @@ class View:
         self.kwargs = kwargs
 
     def dispatch(self, request, *args, **kwargs):
-        pass
-
+        if request.method.lower() in self.http_method_names:
+            handler = getattr(self, request.method.lower(), self.http_method_not_allowed)
+        else:
+            handler = self.http_method_not_allowed
+        return handler(request, *args, **kwargs)
+        
     def http_method_not_allowed(self, request, *args, **kwargs):
         pass
 
@@ -261,4 +273,7 @@ class View:
                                                                                # HttpResponseNotAllowed를 리턴할 때 사용되는 value다.
 
 # 231030에 classonlymethod, __get__, __get__에서 classmethod를 만드는 방법 공부.
-# 231101에 공부할 것은 디스크립터 프로토콜의 __delete__
+# 231101에 공부할 것은 디스크립터 프로토콜의 __delete__, dispatch 이후, 복습은 setup 메소드가 하는 역할(3개)
+# 231102에 복습해야할 것은 dispatch. obsidian에 내용 정리했으므로, 보면서 django doc도 보고 복습, 
+# 디스크립터 프로토콜의 __delete__, deleter도 복습
+# 다음으로 배워야할 것은 http_method_not_allowed.
