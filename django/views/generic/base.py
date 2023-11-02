@@ -5,7 +5,13 @@ from django.template.response import TemplateResponse
 from django.utils.functional import classproperty
 
 from django.utils.decorators import classonlymethod
+from django.http import (
+    HttpResponseNotAllowed, HttpResponse
+)
 
+# django.request라는 로거 인스턴스를 가져오거나 생성
+# logger는 logging systemd에서 메시지를 기록하는 객체다.
+logger = logging.getLogger("django.request")
 
 class ContextMixin:
     """
@@ -261,19 +267,40 @@ class View:
         else:
             handler = self.http_method_not_allowed
         return handler(request, *args, **kwargs)
-        
+
+    # request.path는 scheme, domain, quiry string을 포함하지 않은 request된 page의 path다.
+    # https://docs.djangoproject.com/en/4.2/ref/class-based-views/base/#django.views.generic.base.View.http_method_not_allowed
+    # http_method_not_allowed에서도 dispatch와 마찬가지로
+    # 자기 역할만 하는 코드만 사용되어있고
+    # http method 리스트는 별도의 메소드를 통해 가져오고 있다.
     def http_method_not_allowed(self, request, *args, **kwargs):
-        pass
+        # ex. WARNING: Method Not Allowed (POST): /example/path [Status Code: 405, Request Method: POST, Request Path: /example/path]
+        logger.warning(
+            'Method Not allowed (%s): %s', request.method, request.path,
+            extra={'status_code': 405, 'request': request}
+        )
+        # HttpResponseNotAllowed는 HttpResponse를 상속하고 있다.
+        return HttpResponseNotAllowed(self._allowed_methods())
 
     def option(self, request, *args, **kwargs):
-        pass
+        """Handle responding to requests for the OPTIONS HTTP verb."""
+        response = HttpResponse()
+        response.headers['Allow'] = ', '.join(self._allowed_methods())
+        response.headers['Content-Length'] = '0'
+        return response
 
     def _allowed_methods(self):
-        return [m.upper() for m in self.http_method_names if hasattr(self, m)] # view가 http_method_names 리스트 안에 있는 메소드를 attribute로 갖고 있으면, 대문자로 바꾼다. 
-                                                                               # HttpResponseNotAllowed를 리턴할 때 사용되는 value다.
+        # http_method_names 안에 지정된 메소드들 중에서도 view에 정의되어 있는 메소드들만을 return한다.
+        return [m.upper() for m in self.http_method_names if hasattr(self, m)]
+
 
 # 231030에 classonlymethod, __get__, __get__에서 classmethod를 만드는 방법 공부.
 # 231101에 공부할 것은 디스크립터 프로토콜의 __delete__, dispatch 이후, 복습은 setup 메소드가 하는 역할(3개)
 # 231102에 복습해야할 것은 dispatch. obsidian에 내용 정리했으므로, 보면서 django doc도 보고 복습, 
 # 디스크립터 프로토콜의 __delete__, deleter도 복습
 # 다음으로 배워야할 것은 http_method_not_allowed.
+# 231102 디스크립터 프로토콜 __get__, __set__, __delete__, getter, setter, deleter 복습 완료
+# 습득한 것은 __set__을 포함한 매직 메소드들 안에서는 self._setter와 같은 setter로 지정한 메소드를 호출해야한다는 것.
+# dispatch 복습하고 http_method_not_allowed, _allowed_methods, option 습득
+# 231103 다음으로 할 것은 as_view의 update_wrapper 분석 하는것부터 시작.
+# view의 base.py 분석이 끝나면 HttpRepsonse 분석 할 것.
