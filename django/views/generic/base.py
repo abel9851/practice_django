@@ -1,4 +1,5 @@
 import logging
+from functools import update_wrapper
 
 from django.core.exceptions import ImproperlyConfigured
 from django.template.response import TemplateResponse
@@ -214,7 +215,7 @@ class View:
 
         for key, value in kwargs.items():
             setattr(self, key, value)
-
+    # as_view = classonlymethod(as_view) 
     @classonlymethod # django.utils.decorators에서 확인해보면, python의 classmethod를 상속하고 있다. 별다른 수정없이 이름만 변경했다.
     def as_view(cls, **initkwargs): # request를 인자로 취하고 response를 리턴하는 view 함수를 리턴한다.
         """Main entry point for a request-response process."""
@@ -250,6 +251,17 @@ class View:
                               # 뷰 클래스의 인스턴스는 각 HTTP 요청마다 새로 생성되므로, view_class에 인스턴스를 할당하는 것은 적절하지 않다.
                               # self = cls(**initkwargs)가 그렇다.
         view.view_initkwargs = initkwargs
+
+        # 반환해서 함수로 지정하는 것도 아닌데 어떻게 된거지?
+        # 추측으로는 view안에 특별한 조치를 내부적으로 진행하는 것 같다.
+        # take name and docstring from class
+        # cls 즉 as_view를 호출한 view 클래스의 assigned 튜플에 정의된 __name__, __qualname__, __doc__, __annotations__를 view 메소드에 할당한다.
+        update_wrapper(view, cls, updated=()) 
+
+        # and possible attributes set by decorators
+        # like csrf_exempt from dispatch
+        # cls.dispatch의 __dict__가 (updated 튜플의 default 요소) view 메소드에도 있다면, view 메소드의 __dict__에 cls.dispatch의 __dict__를 update한다.
+        update_wrapper(view, cls.dispatch, assigned=())
 
         return view
 
@@ -304,3 +316,7 @@ class View:
 # dispatch 복습하고 http_method_not_allowed, _allowed_methods, option 습득
 # 231103 다음으로 할 것은 as_view의 update_wrapper 분석 하는것부터 시작.
 # view의 base.py 분석이 끝나면 HttpRepsonse 분석 할 것.
+# http_method_not_allowed, _allowed_methods, option 복습 완료
+# update_wrapper, __name__, __qualname__, __doc__, __annotations__, __dict__, update_wrapper의 updated, assigned 인자 습득완료
+# 231104에 위의 2줄 복습하기
+# update_wrapper 학습이 끝났으니 RedirectView 습득 시작하기
