@@ -326,6 +326,8 @@ class View:
 # 231106 RedirectView 습득완료, 하지만 django.urls의 reverse나 httpresponse는 아직 습득하지 않음
 # templateview까지 습득 한뒤, reverse, httpresponse를 학습할 것
 # 231107에 RedirectView의 get_redirect_url 메소드, get 메소드 복습할 것
+# 231108 위의 두개 복습완료. templateView, ContextMixin, TemplateResponseMixin 습득완료
+# 231109에 복습하기
 
 
 # get 이외의 http 메소드로 접근할 시, 전부 get을 호출하는 것을 보면,
@@ -387,3 +389,73 @@ class RedirectView(View):
 
     def patch(self, request, *args, **kwargs):
         return self.get(request, *args, **kwargs)
+
+
+# get_context_data를 호출해서 얻은 데이터를 키워드 인자로 전달하는 기본 믹스인이다.
+class ContextMixin:
+    """
+    a default context mixin that passes the keyward arguments received by
+    get_context_data() as the template context.
+    """
+
+    extra_context = None
+
+    # keyward arguments를 업데이트 및 self에 호출하는 클래스의 인스턴스 즉, view를 할당한다.
+    # 딱히 코드 상에 view가 아니면 이 mixin을 사용할 수 없다는 제약같은건 없다.
+    def get_context_data(self, **kwargs):
+        kwargs.setdefault('view', self) # view라는 key로 self 인스턴스를 할당한다. 
+        if self.extra_context is not None:
+            kwargs.update(self.extra_context)
+        return kwargs    
+
+
+class TemplateResponseMixin:
+    """A mixin that can be used to render a template."""
+    template_name = None
+    template_engine = None
+    response_class = TemplateResponse
+    content_type = None
+
+
+
+    def render_to_response(self, context, **response_kwargs):
+        """
+        Return a response, using the `response_class` for this view, with a
+        template rendered with the given context.
+
+        Pass response_kwargs to the constructor of the response class.
+        """
+        response_kwargs.setdefault('context')
+        return self.response_class(
+            request=self.request,
+            template=self.get_template_names(),
+            context=context,
+            using=self.template_engine,
+            **response_kwargs
+        )
+
+    def get_template_names(self):
+        """
+        Retirm a list of template names to be used for the request. Must return
+        a list. May not be called if render_to_response() is overridden.
+        
+        """
+        if self.template_name is None:
+            raise ImproperlyConfigured(
+                "TemplateResonseMixin requires either a definition of "
+                "'template_name' or an implementation of 'get_template_names()'"
+            )
+
+        else:
+            return [self.template_name]
+
+
+class TemplateView(TemplateResponseMixn, ContextMixin, View):
+    """
+    Render a template. Pass keyword arguments from the URLconf to the context.
+    """
+
+    # self.get_context_data는 ContextMixin에 정의되어 있다.
+    def get(self. request, *args, **kwargs):
+        context = self.get_context_data(**kwargs) # kwargs를 return 즉 context == kwargs
+        return self.render_to_response(context) # view의 distpath 메소드에서 이 ger을 라우팅한 후, mixin에서 사용하는 httpresponse를 상속받아서 사용한다.
