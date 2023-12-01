@@ -125,3 +125,88 @@ class HttpResponseBase:
                 "'content_type' parameter is provided."
             )
 
+
+
+# 231121 학습시작
+class HttpResponseBase:
+    pass
+
+
+# self._container는 HttpResponse.content = value 혹은 HttpResponse의 instance.content = value를
+# 사전에 호출하지 않으면 @property 데코레이터를 사용한 content를 호출하면 에러가 발생하지 않을까 생각한다.
+class HttpResponse(HttpResponseBase):
+    """
+    An HTTP response class with a string as content.
+    This content can be read, appended to, or replaced.
+    """
+
+    def __init__(self, content=b'', *args, **kwargs):
+        super().__init__(*args, *kwargs)
+        # Content is a bytestring. See the `content` property methods.
+        # 위의 코맨트를 보면 content는 bytestring이라고 되어있는데, content는 bytes, memoryview, str을 포함하고 있다.
+        # 그리고 content의 default value가 b''이므로, bytestring이구나 라고 유추할 수 있을 것 같은데
+        # content property methods를 확인해보면 알 수 있다는 게 왜 그렇게 작성한지 궁금했다.
+        # django doc을 확인해봐야겠다. https://docs.djangoproject.com/en/4.2/ref/request-response/#id4
+        self.content = content
+
+    def __repr__(self):
+        return '<%(cls)s status_code=%(status_code)d%(content_type)s>' % {
+            'cls': self.__class__.__name__,
+            'status_code': self.status_code,
+            'content_type': self._content_type_for_repr,
+        }
+
+    def serialize(self):
+        """Full HTTP message, including headers, as a bytestring."""
+        return self.serializer_headers() + b'\r\n\r\n' + self.content
+
+    __bytes__ = serialize # 위의 serialize가 있음에도 불구하고 왜 __bytes__를 사용하는지 궁금했다.
+
+    # property는 중개자 역할을 한다.
+    # TODO: content.setter 이전에 사용할 수 있는지 shell에서 테스트해보기
+    @property
+    def content(self):
+        return b''.join(self._container)
+
+    @content.setter
+    def content(self, value):
+        # Consume iterators upon assignment to allow repeated iteration.
+        # __iter__를 가진 파이썬 객체는 리스트, 튜플, 문자열, 딕셔너리, 셋, 파일객체(File objects),
+        # range 객체, 제네레이터, 넘파이 배열, bites, memoryview 등이 있다.
+        if hasattr(value, '__iter__') and not isinstance(
+            value, (bytes, memoryview, str)
+        ):  
+            # bytes, memoiryview, str이외의 iterable 객체를 받았을 경우,
+            # bytes 객체로 만들고 join.
+            # TODO: make_bytes() 습득하기 12/02
+            content = b"".join(self.make_bytes(chunk) for chunk in value)
+
+            # 이 부분은 file객체를 대상으로 하는 것 같다.
+            if hasattr(value, 'close'):
+                try:
+                    value.close()
+                except Exception:
+                    pass
+        
+        # iterable객체이나 bytes, memoryview, str를 받았을 경우
+        # iterable객체가 아닌 경우
+        else:
+            content = self.make_bytes(value)
+        
+        # Create a list of properly encoded bytestrings to support write().
+        # HttpResponse.write(content)를 위해 byte타입 객체를 리스트로 감싸는 것 같다.
+        self._container = [content]
+
+    # TODO: __iter__ 습득하기
+    def __iter__(self):
+        return iter(self._container)
+
+    # def write
+
+    # def tell
+
+    # def getvalue
+
+    # def writable
+
+    # def writelines
