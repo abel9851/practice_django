@@ -327,7 +327,8 @@ class View:
 # templateview까지 습득 한뒤, reverse, httpresponse를 학습할 것
 # 231107에 RedirectView의 get_redirect_url 메소드, get 메소드 복습할 것
 # 231108 위의 두개 복습완료. templateView, ContextMixin, TemplateResponseMixin 습득완료
-# 231109에 복습하기
+# 231108에 복습하기 완료.
+# 231108 HttpResponse 습득 시작 django.http.response.py
 
 
 # get 이외의 http 메소드로 접근할 시, 전부 get을 호출하는 것을 보면,
@@ -416,8 +417,6 @@ class TemplateResponseMixin:
     response_class = TemplateResponse
     content_type = None
 
-
-
     def render_to_response(self, context, **response_kwargs):
         """
         Return a response, using the `response_class` for this view, with a
@@ -438,7 +437,7 @@ class TemplateResponseMixin:
         """
         Retirm a list of template names to be used for the request. Must return
         a list. May not be called if render_to_response() is overridden.
-        
+
         """
         if self.template_name is None:
             raise ImproperlyConfigured(
@@ -450,12 +449,12 @@ class TemplateResponseMixin:
             return [self.template_name]
 
 
-class TemplateView(TemplateResponseMixn, ContextMixin, View):
+class TemplateView(TemplateResponseMixin, ContextMixin, View):
     """
     Render a template. Pass keyword arguments from the URLconf to the context.
     """
 
     # self.get_context_data는 ContextMixin에 정의되어 있다.
-    def get(self. request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         context = self.get_context_data(**kwargs) # kwargs를 return 즉 context == kwargs
         return self.render_to_response(context) # view의 distpath 메소드에서 이 ger을 라우팅한 후, mixin에서 사용하는 httpresponse를 상속받아서 사용한다.

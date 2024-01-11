@@ -140,6 +140,8 @@ class HttpResponse(HttpResponseBase):
     This content can be read, appended to, or replaced.
     """
 
+    streaming = False
+
     def __init__(self, content=b'', *args, **kwargs):
         super().__init__(*args, *kwargs)
         # Content is a bytestring. See the `content` property methods.
@@ -199,14 +201,23 @@ class HttpResponse(HttpResponseBase):
 
     # TODO: __iter__ 습득하기
     def __iter__(self):
-        return iter(self._container)
+        return iter(self._container) # 반복자를 생성한다.
+    
+    def write(self, content):
+        self._container.append(self.make_bytes(content))
 
-    # def write
+    def tell(self):
+        return len(self.content)
+    
+    def getvalue(self):
+        return self.content
+    
+    def writable(self):
+        return True
+    
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
 
-    # def tell
 
-    # def getvalue
-
-    # def writable
-
-    # def writelines
+# 240112 httpResponseBase와 make_bytes분석하기
